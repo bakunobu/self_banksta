@@ -45,3 +45,13 @@ for acc in client_fresh.get_active_accounts():
 print("\nClosed Accounts:")
 for acc in client_fresh.get_closed_accounts():
     print(" ", acc)
+    
+    
+
+client = Client(client_id="C001", name="Alice Johnson", email="alice@example.com")
+
+# Make a partial monthly payment
+client.make_monthly_payment(account_id="ACC001", amount=500.00)
+
+# Fully repay and close an account early
+client.early_repayment(account_id="ACC002")

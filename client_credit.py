@@ -203,6 +203,70 @@ class Client:
     def total_outstanding_debt(self) -> float:
         """Sum of all current balances on active accounts."""
         return sum(acc.credit_amt for acc in self.get_active_accounts())
+    
+    def make_monthly_payment(self, account_id: str, amount: float) -> bool:
+        """
+        Make a monthly payment toward a credit account.
+        
+        Args:
+            account_id (str): The ID of the credit account
+            amount (float): Payment amount (must be positive)
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if amount <= 0:
+            raise ValueError("Payment amount must be greater than zero.")
+
+        account = self._get_account(account_id)
+        if not account:
+            print(f"Account '{account_id}' not found for client '{self.client_id}'.")
+            return False
+
+        if not account.is_active:
+            print(f"Cannot make payment: Account '{account_id}' is closed.")
+            return False
+
+        if amount > account.credit_amt:
+            print(f"Warning: Payment of ${amount:.2f} exceeds current balance ${account.credit_amt:.2f}. "
+                  f"Remaining balance will be set to $0.00.")
+
+        new_balance = max(0.0, account.credit_amt - amount)
+        account.update_balance(new_balance)
+        print(f"Payment of ${amount:.2f} applied to account '{account_id}'. "
+              f"New balance: ${new_balance:.2f}")
+        return True
+
+    def early_repayment(self, account_id: str) -> bool:
+        """
+        Fully repay and close a credit account (early repayment).
+        
+        Args:
+            account_id (str): The ID of the credit account
+
+        Returns:
+            bool: True if successfully repaid and closed, False otherwise
+        """
+        account = self._get_account(account_id)
+        if not account:
+            print(f"Account '{account_id}' not found for client '{self.client_id}'.")
+            return False
+
+        if not account.is_active:
+            print(f"Account '{account_id}' is already closed.")
+            return False
+
+        account.update_balance(0.0)  # Pay off entire balance
+        account.close_account()
+        print(f"Early repayment completed and account '{account_id}' has been closed.")
+        return True
+
+    def _get_account(self, account_id: str) -> Optional[CreditAccount]:
+        """Helper method to retrieve an account by ID from the local list."""
+        for acc in self.accounts:
+            if acc.account_id == account_id:
+                return acc
+        return None
 
     def __repr__(self):
         return (f"Client(id='{self.client_id}', name='{self.name}', email='{self.email}', "
