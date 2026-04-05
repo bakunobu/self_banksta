@@ -133,6 +133,48 @@ class CreditAccount:
             "credit_amt": self.credit_amt,
             "is_active": self.is_active
         }
+        
+    @staticmethod
+    def calculate_monthly_payment(
+        credit_amount: float,
+        annual_interest_rate: float,
+        duration_months: int
+    ) -> dict:
+        """
+        Calculate monthly payment and total repayment using the loan amortization formula.
+        
+        Args:
+            credit_amount: The loan/principal amount
+            annual_interest_rate: Annual interest rate (e.g., 0.15 for 15%)
+            duration_months: Number of months
+        
+        Returns:
+            Dict with monthly_payment, total_repayment, total_interest
+        """
+        if credit_amount <= 0:
+            raise ValueError("Credit amount must be positive.")
+        if annual_interest_rate < 0:
+            raise ValueError("Interest rate cannot be negative.")
+        if duration_months <= 0:
+            raise ValueError("Duration must be a positive number of months.")
+
+        monthly_rate = annual_interest_rate / 12  # Monthly interest rate
+
+        if monthly_rate == 0:
+            monthly_payment = credit_amount / duration_months
+        else:
+            # Amortization formula
+            monthly_payment = credit_amount * (monthly_rate * (1 + monthly_rate)**duration_months) / \
+                            (((1 + monthly_rate)**duration_months) - 1)
+
+        total_repayment = monthly_payment * duration_months
+        total_interest = total_repayment - credit_amount
+
+        return {
+            "monthly_payment": round(monthly_payment, 2),
+            "total_repayment": round(total_repayment, 2),
+            "total_interest": round(total_interest, 2)
+        }
 
     def __repr__(self):
         status = "Active" if self.is_active else "Closed"
@@ -232,3 +274,20 @@ class Client:
             "active_accounts": len(self.get_active_accounts()),
             "closed_accounts": len(self.get_closed_accounts())
         }
+        
+    def suggest_credit_plan(
+        self,
+        credit_amount: float,
+        annual_rate:
+            float, max_payment: float):
+        """Find the minimum duration where monthly payment ≤ max_payment"""
+        for months in range(6, 121):  # Try 6 to 120 months
+            calc = CreditAccount.calculate_monthly_payment(credit_amount, annual_rate, months)
+            if calc["monthly_payment"] <= max_payment:
+                return {
+                    "duration_months": months,
+                    "duration_years": round(months / 12, 1),
+                    "monthly_payment": calc["monthly_payment"],
+                    "total_interest": calc["total_interest"]
+                }
+        return {"error": "No suitable plan found within 10 years."}
