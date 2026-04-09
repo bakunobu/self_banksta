@@ -180,6 +180,77 @@ class CreditAccount:
         status = "Active" if self.is_active else "Closed"
         return (f"CreditAccount(id='{self.account_id}', rate={self.interest_rate:.1%}, "
                 f"limit=${self.credit_limit:,.2f}, balance=${self.credit_amt:,.2f}, status={status})")
+        
+    # --- Dynamic Interest Rate Engine ---
+class DynamicRateEngine:
+    """
+    A rule-based engine that returns an annual interest rate based on loan duration.
+    Can use tiered or interpolated rates.
+    """
+
+    # Define rate tiers: (min_duration_months, rate_as_decimal)
+    DEFAULT_TIERS = [
+        (6,   0.18),   # 18% for 6–12 months
+        (13,  0.16),   # 16% for 13–24 months
+        (25,  0.15),   # 15% for 25–36 months
+        (37,  0.14),   # 14% for 37–60 months
+        (61,  0.135),  # 13.5% for 61–84 months
+        (85,  0.13),   # 13% for 85+ months
+    ]
+
+    def __init__(self, rate_tiers=None):
+        """
+        Args:
+            rate_tiers: List of tuples [(min_months, rate), ...], sorted by duration
+        """
+        self.tiers = rate_tiers or self.DEFAULT_TIERS
+
+    def get_rate(self, duration_months: int) -> float:
+        """
+        Get the applicable annual interest rate based on duration.
+
+        Args:
+            duration_months (int): Loan term in months
+
+        Returns:
+            float: Annual interest rate (e.g., 0.15 for 15%)
+        """
+        if duration_months < self.tiers[0][0]:
+            # If shorter than minimum, return highest rate
+            return self.tiers[0][1]
+
+        # Find the longest tier <= duration
+        rate = self.tiers[0][1]  # default fallback
+        for min_months, tier_rate in self.tiers:
+            if duration_months >= min_months:
+                rate = tier_rate
+            else:
+                break
+        return rate
+
+    def get_suggested_rate(self, amount: float, max_payment: float) -> dict:
+        """
+        Suggest the best feasible duration and its corresponding rate/payment.
+
+        Args:
+            amount: Loan amount
+            max_payment: Max affordable monthly payment
+
+        Returns:
+            dict: Contains duration, rate, payment, total interest
+        """
+        for months in range(6, 121):
+            rate = self.get_rate(months)
+            calc = CreditAccount.calculate_monthly_payment(amount, rate, months)
+            if calc["monthly_payment"] <= max_payment:
+                return {
+                    "duration_months": months,
+                    "duration_years": round(months / 12, 1),
+                    "annual_interest_rate": rate,
+                    "monthly_payment": calc["monthly_payment"],
+                    "total_interest": calc["total_interest"]
+                }
+        return {"error": "No plan fits your budget within 10 years."}
 
 
 class Client:
@@ -278,16 +349,20 @@ class Client:
     def suggest_credit_plan(
         self,
         credit_amount: float,
-        annual_rate:
-            float, max_payment: float):
-        """Find the minimum duration where monthly payment ≤ max_payment"""
-        for months in range(6, 121):  # Try 6 to 120 months
-            calc = CreditAccount.calculate_monthly_payment(credit_amount, annual_rate, months)
-            if calc["monthly_payment"] <= max_payment:
-                return {
-                    "duration_months": months,
-                    "duration_years": round(months / 12, 1),
-                    "monthly_payment": calc["monthly_payment"],
-                    "total_interest": calc["total_interest"]
-                }
-        return {"error": "No suitable plan found within 10 years."}
+        max_payment: float,
+        rate_engine: DynamicRateEngine = None
+    ) -> dict:
+        """
+        Suggest a credit plan where interest rate depends on loan duration.
+
+        Args:
+            credit_amount (float): Desired loan amount
+            max_payment (float): Maximum monthly payment client can afford
+            rate_engine (DynamicRateEngine): Custom rate rules (optional)
+
+        Returns:
+            dict: Best feasible plan with rate, term, cost
+        """
+        engine = rate_engine or DynamicRateEngine()
+
+        return engine.get_suggested_rate(credit_amount, max_payment)
