@@ -12,6 +12,7 @@ class CreditAccount:
         interest_rate: float = 0.0,
         credit_limit: float = 0.0,
         credit_amt: float = 0.0,
+        principal: float = None,
         is_active: bool = True,
         db_path: str = "dbs/accounts.db"
     ):
@@ -20,8 +21,10 @@ class CreditAccount:
         self.interest_rate = interest_rate
         self.credit_limit = credit_limit
         self.credit_amt = credit_amt
+        self.principal = principal
         self.is_active = is_active
         self.db_path = db_path
+        
 
     def _initialize_db(self):
         conn = sqlite3.connect(self.db_path)
@@ -33,6 +36,7 @@ class CreditAccount:
                 interest_rate REAL NOT NULL,
                 credit_limit REAL NOT NULL,
                 credit_amt REAL NOT NULL,
+                principal REAL,               -- Track original borrowed amount
                 is_active INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -49,14 +53,15 @@ class CreditAccount:
 
         cursor.execute('''
             INSERT OR REPLACE INTO credit_accounts
-            (client_id, account_id, interest_rate, credit_limit, credit_amt, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (client_id, account_id, interest_rate, credit_limit, credit_amt, principal, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             self.client_id,
             self.account_id,
             self.interest_rate,
             self.credit_limit,
             self.credit_amt,
+            self.principal, 
             int(self.is_active),
             now if not self._exists() else self._get_created_at(),
             now
@@ -85,19 +90,63 @@ class CreditAccount:
         self.is_active = False
         self.save()
 
-    def apply_monthly_interest(self):
+    def apply_monthly_interest(self, max_interest_ratio: float = 0.5) -> dict:
+        """
+        Apply monthly interest only if total interest doesn't exceed a cap.
+        Default: Interest cannot exceed max_interest_ratio (e.g., 50%) of credit limit.
+
+        Args:
+            max_interest_ratio (float): Max ratio of interest relative to credit limit (default 0.5)
+
+        Returns:
+            dict: Result message or error
+        """
         if not self.is_active:
             return {"error": "Account is closed."}
+
+        # Calculate current interest paid so far
+        total_interest_paid = self.credit_amt - self._get_principal_start()
+
+        # How much interest we're about to add
         monthly_rate = self.interest_rate / 12
+        interest_for_this_month = self.credit_amt * monthly_rate
+
+        # Maximum allowed total interest
+        max_allowed_interest = self.credit_limit * max_interest_ratio
+
+        # Will this push us over the cap?
+        if total_interest_paid + interest_for_this_month > max_allowed_interest:
+            remaining_interest = max_allowed_interest - total_interest_paid
+            if remaining_interest <= 0:
+                return {
+                    "warning": f"Interest cap reached ({max_interest_ratio:.0%} of limit). "
+                               f"No more interest will be charged."
+                }
+
+            # Prorate: only apply partial interest
+            effective_rate = remaining_interest / self.credit_amt
+            self.credit_amt *= (1 + effective_rate)
+            self.save()
+            return {
+                "message": f"Partial interest applied (capped). "
+                           f"New balance: ${self.credit_amt:.2f}. Interest cap reached.",
+                "capped": True
+            }
+
+        # Normal case: apply full interest
         self.credit_amt *= (1 + monthly_rate)
         self.save()
         return {"message": f"Interest applied. New balance: ${self.credit_amt:.2f}"}
 
-    def update_balance(self, amount: float):
-        if amount > self.credit_limit:
-            raise ValueError(f"Amount {amount} exceeds limit {self.credit_limit}")
-        self.credit_amt = amount
-        self.save()
+    def _get_principal_start(self) -> float:
+        """Return the original principal amount."""
+        return self.principal or self.credit_limit
+
+        def update_balance(self, amount: float):
+            if amount > self.credit_limit:
+                raise ValueError(f"Amount {amount} exceeds limit {self.credit_limit}")
+            self.credit_amt = amount
+            self.save()
 
     @staticmethod
     def get_accounts_by_client(client_id: str, db_path: str = "dbs/accounts.db") -> List['CreditAccount']:
