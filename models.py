@@ -224,6 +224,36 @@ class CreditAccount:
             "total_repayment": round(total_repayment, 2),
             "total_interest": round(total_interest, 2)
         }
+        
+    def update_credit_limit(self, new_limit: float, force: bool = False):
+        """
+        Update the credit limit for this account.
+
+        Args:
+            new_limit (float): New credit limit
+            force (bool): If True, allows limit < current balance
+
+        Returns:
+            dict: Result message or error
+        """
+        if new_limit <= 0:
+            return {"error": "Credit limit must be positive."}
+
+        if not self.is_active:
+            return {"error": "Cannot modify limit on a closed account."}
+
+        if new_limit < self.credit_amt and not force:
+            return {
+                "error": f"New limit (${new_limit:.2f}) is below current balance (${self.credit_amt:.2f}). "
+                        "Use force=True to override."
+            }
+
+        self.credit_limit = new_limit
+        self.save()
+        return {
+            "message": f"Credit limit updated to ${self.credit_limit:,.2f}.",
+            "warning": "Balance exceeds limit." if new_limit < self.credit_amt else None
+        }
 
     def __repr__(self):
         status = "Active" if self.is_active else "Closed"
