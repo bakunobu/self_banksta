@@ -2,15 +2,92 @@
 import sqlite3
 from datetime import datetime
 from typing import List, Optional
+from cb_parser import ParseKeyRates
+
+
+class Client:
+    def __init__(
+        self,
+        client_email:str,
+        db_path:str = "dbs/clients.db"
+        ):
+        self.client_email = client_email
+        self.db_path = db_path
+    
+    def _initialize_db(self):
+        pass
+    
+    
 
 
 class CreditAccount:
     def __init__(
         self,
         client_id:str,
+        acc_id:str,
+        db_path: str="dbs/accounts.db"
     ):
-        pass#
+        self.client_id = client_id
+        self.acc_id = acc_id
+        self.db_path = db_path
 
+    def _initialize_db(self):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS credit_accounts (
+                client_id TEXT NOT NULL,
+                account_id TEXT PRIMARY KEY,
+                rate_multiplicator REAL NOT NULL,
+                credit_limit REAL NOT NULL,
+                credit_amt REAL NOT NULL,
+                principal REAL,               -- Track original borrowed amount
+                is_active INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+        conn.close()
+        
+    def load_account_info(self):
+        pass
+        
+    def create_new_account(self):
+        pass
+    
+    def update_account_info(self, **kwargs):
+        pass
+    
+    def return_client_multiplicator(self):
+        return 1.0
+    
+    def return_base_rate(self):
+        key_rate = ParseKeyRates().return_actual_rate()
+        if not isinstance(key_rate, float):
+            raise ValueError("Cannot load keyrate!")
+        base_multiplicator = self.return_client_multiplicator()
+        return key_rate * base_multiplicator
+
+
+class Product:
+    def __init__(
+        self,
+        client_id:str,
+        acc_id:str,
+        ):
+        self.client_id = client_id
+        self.acc_id = acc_id
+        self.client_acc = CreditAccount(self.client_id, self.acc_id).load_account_info()
+    
+    def create_new_product(self, principal:float=10000.0):
+        if self.client_acc.credit_amt < principal:
+            principal = self.client_acc.credit_amt
+            if principal <= 0:
+                raise ValueError("No credit available!")
+        
+        
+    
 
 # class CreditAccount:
 #     def __init__(
