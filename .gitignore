@@ -138,3 +138,6 @@ dmypy.json
 
 # Databases directory
 dbs/
+
+# Data directory
+data
