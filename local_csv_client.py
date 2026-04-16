@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+import datetime as dt
 
 from interest_calculator import InterestRateCalculator, calculate_monthly_payment
 
@@ -63,9 +64,67 @@ def calculate_compound_interest(principal: float, duration_months: int, annual_r
         "total_paid": round(total_paid, 2),
         "total_interest": round(total_interest, 2)
     }
+    
+def generate_monthly_payment_schedule(
+    principal:float,
+    duration_months:int,
+    annual_rate:float,
+    start_date:str=None) -> pd.DataFrame:
+    """
+    Generate a monthly payment schedule with dates and amounts.
 
-result = calculate_compound_interest(
-    50_000,
-    6,
-    .18
-)
+    Args:
+        principal (float): Loan amount
+        duration_months (int): Number of months
+        annual_rate (float): Annual interest rate (e.g., 0.17 for 17%)
+        start_date (str): Start date in 'YYYY-MM-DD' format. Defaults to today.
+
+    Returns:
+        pd.DataFrame: Columns = ['payment_number', 'payment_date', 'payment_amount']
+    """
+    # Set start date
+    if start_date is None:
+        start_date = dt.datetime.today().replace(day=1)  # First day of current month
+    else:
+        start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").replace(day=1)
+
+    # # Monthly interest rate
+    # monthly_rate = annual_rate / 12
+
+    # # Correct monthly payment using amortization formula
+    # if monthly_rate > 0:
+    #     monthly_payment = principal * (monthly_rate * (1 + monthly_rate)**duration_months) / \
+    #                       (((1 + monthly_rate)**duration_months) - 1)
+    # else:
+    #     monthly_payment = principal / duration_months
+
+    # monthly_payment = round(monthly_payment, 2)
+
+    # Generate payment dates (one per month)
+    calc = calculate_compound_interest(
+        principal,
+        duration_months,
+        annual_rate
+        )
+    
+    monthly_payment = calc.get('monthly_payment')
+    
+    dates = [(start_date + pd.DateOffset(months=i)).date() for i in range(duration_months)]
+
+    # Create DataFrame
+    schedule = pd.DataFrame({
+        'payment_number': range(1, duration_months + 1),
+        'payment_date': dates,
+        'payment_amount': monthly_payment
+    })
+
+    return schedule
+
+# result = calculate_compound_interest(
+#     500_000,
+#     6,
+#     .17
+# )
+# print(result)
+
+print(generate_monthly_payment_schedule(500_000, 6, .17, '2026-05-21').to_string())
