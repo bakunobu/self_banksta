@@ -29,9 +29,11 @@ CONFIG = {
 
 update_config(data_path, CONFIG)
 
+# ... [imports and config remain unchanged] ...
+
 def calculate_compound_interest(principal: float, duration_months: int, annual_rate: float) -> dict:
     """
-    Calculate compound interest with monthly compounding.
+    Calculate compound interest and monthly payment using correct amortization formula.
 
     Args:
         principal (float): The initial principal amount
@@ -39,28 +41,32 @@ def calculate_compound_interest(principal: float, duration_months: int, annual_r
         annual_rate (float): The annual interest rate as a decimal (e.g., 0.05 for 5%)
 
     Returns:
-        dict: A dictionary containing principal, duration in months, rate, 
+        dict: A dictionary containing principal, duration in months, rate,
               monthly payment, total paid, and total interest
     """
     # Convert annual rate to monthly rate
     monthly_rate = annual_rate / 12
-    
-    # Calculate monthly payment using the loan payment formula
-    
+
+    # Calculate monthly payment using correct amortization formula
     if monthly_rate > 0:
-        monthly_payment = (principal * (1 + monthly_rate) ** duration_months) / duration_months
+        num = monthly_rate * (1 + monthly_rate) ** duration_months
+        den = (1 + monthly_rate) ** duration_months - 1
+        monthly_payment = principal * (num / den)
     else:
         monthly_payment = principal / duration_months
-    
+
+    # Round to 2 decimal places
+    monthly_payment = round(monthly_payment, 2)
+
     # Calculate total amount paid and total interest
     total_paid = monthly_payment * duration_months
     total_interest = total_paid - principal
-    
+
     return {
         "principal": principal,
         "duration_months": duration_months,
         "annual_rate": annual_rate,
-        "monthly_payment": round(monthly_payment, 2),
+        "monthly_payment": monthly_payment,
         "total_paid": round(total_paid, 2),
         "total_interest": round(total_interest, 2)
     }
@@ -88,17 +94,6 @@ def generate_monthly_payment_schedule(
     else:
         start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").replace(day=1)
 
-    # # Monthly interest rate
-    # monthly_rate = annual_rate / 12
-
-    # # Correct monthly payment using amortization formula
-    # if monthly_rate > 0:
-    #     monthly_payment = principal * (monthly_rate * (1 + monthly_rate)**duration_months) / \
-    #                       (((1 + monthly_rate)**duration_months) - 1)
-    # else:
-    #     monthly_payment = principal / duration_months
-
-    # monthly_payment = round(monthly_payment, 2)
 
     # Generate payment dates (one per month)
     calc = calculate_compound_interest(
@@ -120,11 +115,32 @@ def generate_monthly_payment_schedule(
 
     return schedule
 
-# result = calculate_compound_interest(
-#     500_000,
-#     6,
-#     .17
-# )
-# print(result)
+def calculate_deposit_effect(
+    principal:float,
+    num_months:int,
+    annual_rate:float) -> float:
+    """
+    Calculates an effect of deposit (use monthly payments as a principal) over a period of time.
+    """
+    
+    
+    total = 0
+    
+    for i in range(num_months):
+        total += calculate_compound_interest(
+            principal,
+            i+1,
+            annual_rate
+        )['total_interest']
+    return total
+    
+    
 
+result = calculate_compound_interest(
+    50_000,
+    6,
+    .18
+)
+print(result)
+print(calculate_deposit_effect(result["monthly_payment"], 5, .13))
 print(generate_monthly_payment_schedule(500_000, 6, .17, '2026-05-21').to_string())
