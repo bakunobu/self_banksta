@@ -1,8 +1,20 @@
 # bot.py
+import os
+import sys
+from pathlib import Path
+
+parent_dir = str(Path(__file__).resolve().parent.parent)
+sys.path.append(parent_dir)
+
+
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, CallbackContext
 import asyncio
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 from local_csv_client import (
     calculate_compound_interest,
@@ -15,7 +27,7 @@ from local_csv_client import (
 from database import init_db, get_user_spread, set_user_spread
 import os
 
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # ← Replace with your bot token from @BotFather
+TOKEN = os.environ.get('TOKEN_TG')  # ← Replace with your bot token from @BotFather
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
