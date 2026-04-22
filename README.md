@@ -17,11 +17,11 @@ Perfect for personal finance planning, loan estimation, or educational use — a
 ---
 
 ## 📁 Project Structure
-project_root/
-├── utils.py    # Main script with financial functions
-├── config.json            # Auto-generated config file (on first run)
-└── output/
-└── payment_schedule.csv  # Example export (optional)
+project_root/<br>
+├── utils.py    # Main script with financial functions<br>
+├── config.json            # Auto-generated config file (on first run)<br>
+└── output/<br>
+└── payment_schedule.csv  # Example export (optional)<br>
 
 ---
 
@@ -34,7 +34,7 @@ project_root/
 pip install -r requirements.txt
 ```
 
-📈 Key Functions
+## 📈 Key Functions
 calculate_compound_interest(principal, rate, years, compounds_per_year=12)
 Returns a dictionary with:
 
@@ -58,7 +58,7 @@ Final balance
 Total contributions
 Total interest earned
 
-📄 License
+## 📄 License
 MIT License
 
 See LICENSE for details.
