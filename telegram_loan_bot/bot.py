@@ -17,8 +17,17 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # ==========================================
 # 1. DATABASE & CONFIGURATION LOGIC
 # ==========================================
-DB_FILE = "loan_bot.db"
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up to root
+DATA_DIR = os.path.join(ROOT_DIR, "data")
+
+# Ensure data directory exists
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# File paths
+DB_FILE = os.path.join(DATA_DIR, "loan_bot.db")
+CONFIG_JSON = os.path.join(DATA_DIR, "config.json")  # In case you still use it
 BASE_KEY_RATE = 0.16  # Example base rate (16%). You can update this as needed.
+
 
 def init_db():
     """Initializes a local SQLite database to store user spreads."""

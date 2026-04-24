@@ -140,4 +140,6 @@ dmypy.json
 dbs/
 
 # Data directory
-data
+/data/*.csv
+/data/loan_bot.db
+.env
