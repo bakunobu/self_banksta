@@ -109,12 +109,18 @@ def generate_monthly_payment_schedule(principal: float, duration_months: int, an
 # 3. TELEGRAM BOT HANDLERS
 # ==========================================
 
-def get_keyboard():
-    """Uses plain text buttons (emojis included) so Regex filters can catch them."""
+def get_keyboard(include_back=False):
+    """
+    Returns a keyboard with main buttons.
+    If include_back=True, adds a '🏠 Back to Start' button at the bottom.
+    """
     keyboard = [
         [KeyboardButton("📊 Rates"), KeyboardButton("📅 Schedule")],
         [KeyboardButton("⚙️ Set Rate")]
     ]
+    if include_back:
+        keyboard.append([KeyboardButton("🏠 Back to Start")])
+    
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -125,6 +131,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📅 Generate payment schedules\n"
         "⚙️ Change your personal rate spread",
         reply_markup=get_keyboard()
+    )
+    
+async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Resets state and shows the start message."""
+    # Clear any pending actions (like awaiting spread)
+    if 'awaiting_spread' in context.user_data:
+        del context.user_data['awaiting_spread']
+    
+    # Re-send the start message with main keyboard
+    await update.message.reply_text(
+        "👋 Welcome back! What would you like to do?",
+        reply_markup=get_keyboard()  # Main menu without 'Back' button
     )
 
 async def rates(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -139,7 +157,9 @@ async def rates(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔹 Base CB Rate: {BASE_KEY_RATE:.2%}\n"
             f"🔹 Your Bank Spread: {custom_spread:.2%}\n"
             f"📈 **Total Actual Rate:** {total_rate:.2%}",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=get_keyboard(include_back=True)
+
         )
     except Exception as e:
         await update.message.reply_text(f"❌ Error fetching rate: {str(e)}")
@@ -151,7 +171,8 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Example:\n"
         "`500000 12` (Uses your saved rate)\n"
         "`500000 12 0.17` (Forces a 17% rate)",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=get_keyboard(include_back=True)
     )
 
 async def setrate(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -159,7 +180,8 @@ async def setrate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔧 Send your new bank spread as a decimal.\n"
         "Example:\n"
         "`0.05` → adds 5% on top of key rate",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=get_keyboard(include_back=True)
     )
     # Set a flag in user_data so the bot knows the next message is a spread value
     context.user_data['awaiting_spread'] = True
@@ -224,7 +246,7 @@ async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_
             f"📎 Full schedule attached as CSV."
         )
 
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_keyboard(include_back=True))
         
         # Send document and clean up
         with open(csv_file, 'rb') as f:
@@ -234,7 +256,8 @@ async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         await update.message.reply_text(
             "❌ Invalid input. Make sure you use numbers.\nExample: `500000 12 0.17`", 
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=get_keyboard(include_back=True)
         )
 
 async def master_text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -265,6 +288,7 @@ if __name__ == '__main__':
 
     # 1. Command Handlers (/start, /rates)
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.Regex("^🏠 Back to Start$"), back_to_start))
     app.add_handler(CommandHandler("rates", rates))
     app.add_handler(CommandHandler("schedule", schedule))
     app.add_handler(CommandHandler("setrate", setrate))
