@@ -109,7 +109,7 @@ def calculate_compound_interest(
     
 def calculate_actual_rate():
     key_rate = ParseKeyRates().return_actual_rate()[1]
-    spread = CONFIG['bank_spread']
+    spread = load_config(data_path)['bank_spread']
     return key_rate / 100 + spread
 
 def generate_monthly_payment_schedule(
