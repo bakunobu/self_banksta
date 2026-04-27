@@ -31,7 +31,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 # File paths
 DB_FILE = os.path.join(DATA_DIR, "loan_bot.db")
 CONFIG_JSON = os.path.join(DATA_DIR, "config.json")  # In case you still use it
-BASE_KEY_RATE = ParseKeyRates()[1]  # Example base rate (16%). You can update this as needed.
+BASE_KEY_RATE = ParseKeyRates().return_actual_rate()[1]  # Example base rate (16%). You can update this as needed.
 
 
 def init_db():
