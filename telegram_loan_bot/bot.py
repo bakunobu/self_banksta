@@ -1,4 +1,9 @@
 import os
+import sys
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up to root
+sys.path.append(ROOT_DIR)  # Add data directory to sys.path for importing
+
 import sqlite3
 import logging
 import asyncio
@@ -6,6 +11,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from local_csv_client import ParseKeyRates
 
 # Load environment variables
 load_dotenv()
@@ -17,7 +23,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # ==========================================
 # 1. DATABASE & CONFIGURATION LOGIC
 # ==========================================
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up to root
 DATA_DIR = os.path.join(ROOT_DIR, "data")
 
 # Ensure data directory exists
@@ -26,7 +31,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 # File paths
 DB_FILE = os.path.join(DATA_DIR, "loan_bot.db")
 CONFIG_JSON = os.path.join(DATA_DIR, "config.json")  # In case you still use it
-BASE_KEY_RATE = 0.16  # Example base rate (16%). You can update this as needed.
+BASE_KEY_RATE = ParseKeyRates()[1]  # Example base rate (16%). You can update this as needed.
 
 
 def init_db():
