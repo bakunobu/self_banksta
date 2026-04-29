@@ -264,6 +264,17 @@ def get_keyboard(include_back=False):
     
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
+def get_keyboard_with_formats():
+    """
+    Returns a keyboard with format selection buttons.
+    """
+    keyboard = [
+        [KeyboardButton("📄 PDF Report"), KeyboardButton("📎 CSV File")],
+        [KeyboardButton("🏠 Back to Start")]
+    ]
+    
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Welcome to the Loan Calculator Bot!\n"
@@ -369,10 +380,6 @@ async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_
         # Generate schedule DataFrame
         df = generate_monthly_payment_schedule(principal, duration, annual_rate)
 
-        # Save to CSV temporarily
-        csv_file = f"schedule_{update.effective_user.id}.csv"
-        df.to_csv(csv_file, index=False)
-
         # Get total summaries
         total = calculate_compound_interest(principal, duration, annual_rate)
 
@@ -383,16 +390,19 @@ async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_
             f"Annual Rate: `{total['annual_rate']:.2%}`\n"
             f"Monthly Payment: `{total['monthly_payment']:,.2f}`\n"
             f"Total Paid: `{total['total_paid']:,.2f}`\n"
-            f"Total Interest: `{total['total_interest']:,.2f}`\n\n"
-            f"📎 Full schedule attached as CSV."
+            f"Total Interest: `{total['total_interest']:,.2f}`\n"
+            f"Deposit Effect: `{total['deposit_effect']:,.2f}`\n\n"
+            f"📎 Choose your preferred format:\n"
         )
 
-        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_keyboard(include_back=True))
+        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_keyboard_with_formats())
         
-        # Send document and clean up
-        with open(csv_file, 'rb') as f:
-            await update.message.reply_document(document=f, filename="payment_schedule.csv")
-        os.remove(csv_file)
+        # Store data in context for later use
+        context.user_data['calculation_data'] = {
+            'total': total,
+            'df': df,
+            'user_id': update.effective_user.id
+        }
 
     except Exception as e:
         await update.message.reply_text(
