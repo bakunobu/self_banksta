@@ -411,6 +411,61 @@ async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=get_keyboard(include_back=True)
         )
 
+async def send_pdf_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send the loan calculation report as a PDF file."""
+    if 'calculation_data' not in context.user_data:
+        await update.message.reply_text(
+            "❌ No calculation data found. Please generate a schedule first.",
+            reply_markup=get_keyboard()
+        )
+        return
+    
+    data = context.user_data['calculation_data']
+    total = data['total']
+    df = data['df']
+    user_id = data['user_id']
+    
+    try:
+        # Generate PDF report
+        pdf_bytes = generate_pdf_report(total, df, user_id)
+        
+        # Send PDF file
+        await update.message.reply_document(
+            document=InputFile(BytesIO(pdf_bytes), filename="loan_schedule.pdf"),
+            caption="📄 Your loan schedule report in PDF format"
+        )
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error generating PDF: {str(e)}")
+
+async def send_csv_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send the loan calculation report as a CSV file."""
+    if 'calculation_data' not in context.user_data:
+        await update.message.reply_text(
+            "❌ No calculation data found. Please generate a schedule first.",
+            reply_markup=get_keyboard()
+        )
+        return
+    
+    data = context.user_data['calculation_data']
+    df = data['df']
+    user_id = data['user_id']
+    
+    try:
+        # Create CSV file in memory
+        csv_buffer = BytesIO()
+        df.to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)
+        
+        # Send CSV file
+        await update.message.reply_document(
+            document=InputFile(csv_buffer, filename="loan_schedule.csv"),
+            caption="📎 Your loan schedule in CSV format"
+        )
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error generating CSV: {str(e)}")
+
 async def master_text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Routes plain text messages to the correct function based on user state."""
     text = update.message.text.strip()
@@ -422,7 +477,12 @@ async def master_text_router(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Route 1: User clicked "Set Rate" and is sending a new spread
     if context.user_data.get('awaiting_spread'):
         await handle_setrate(update, context)
-    # Route 2: Default behavior is calculating a loan schedule
+    # Route 2: User is selecting a report format
+    elif text == "📄 PDF Report":
+        await send_pdf_report(update, context)
+    elif text == "📎 CSV File":
+        await send_csv_file(update, context)
+    # Route 3: Default behavior is calculating a loan schedule
     else:
         await handle_loan_calculation(update, context)
 
