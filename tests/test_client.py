@@ -25,7 +25,7 @@ def test_generate_monthly_payment_schedule():
 def test_calculate_deposit_effect():
     # Note: This function uses monthly compound interest on growing duration
     result = calculate_deposit_effect(principal=100, num_months=60, annual_rate=0.05)
-    assert result > 3000  # Should accumulate significant interest over time
+    assert result > 10_000  # Should accumulate significant interest over time
 
 
 # --- New Test: ParseKeyRates ---
