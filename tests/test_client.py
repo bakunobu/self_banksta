@@ -53,7 +53,7 @@ def test_generate_monthly_payment_schedule_returns_correct_structure():
     months = 12
 
     # Act
-    df = generate_monthly_payment_schedule(principal, annual_rate, months)
+    df = generate_monthly_payment_schedule(principal, months, annual_rate)
 
     # Assert: Basic structure
     assert len(df) == months
@@ -86,7 +86,7 @@ def test_generate_monthly_payment_schedule_calculates_correct_payment_amount():
     annual_rate = 0.05
     months = 24
 
-    df = generate_monthly_payment_schedule(principal, annual_rate, months)
+    df = generate_monthly_payment_schedule(principal, months, annual_rate)
 
     monthly_payment = df.iloc[0]["payment_amount"]
     expected_payment = 4387.14  # Pre-calculated value
