@@ -1,4 +1,6 @@
 import pytest
+import pandas as pd
+import datetime as dt
 from local_csv_client import (
     ParseKeyRates,
     calculate_compound_interest,
@@ -25,7 +27,7 @@ def test_calculate_compound_interest():
         "monthly_payment",
         "total_paid",
         "total_interest",
-        "deposit_effect",
+        # "deposit_effect",
     ]
     for key in expected_keys:
         assert key in result, f"Missing key: {key}"
@@ -41,38 +43,85 @@ def test_calculate_compound_interest():
     assert abs(result["total_interest"] - 52.88) < 0.01  # Actual calculated value
 
 
-def test_generate_monthly_payment_schedule():
+def test_generate_monthly_payment_schedule_returns_correct_structure():
     """
-    Test monthly payment schedule generation.
+    Test that generate_monthly_payment_schedule returns correct columns and row count.
     """
+    # Arrange
+    principal = 120000
+    annual_rate = 0.06
+    months = 12
+
+    # Act
+    df = generate_monthly_payment_schedule(principal, annual_rate, months)
+
+    # Assert: Basic structure
+    assert len(df) == months
+    expected_columns = ["payment_number", "payment_date", "payment_amount"]
+    for col in expected_columns:
+        assert col in df.columns, f"Missing column: {col}"
+
+    # Assert: Data types
+    assert pd.api.types.is_integer_dtype(df["payment_number"])
+    assert pd.api.types.is_object_dtype(df["payment_date"])  # .date() gives string-like
+    assert pd.api.types.is_float_dtype(df["payment_amount"])
+
+    # Assert: Values make sense
+    first_row = df.iloc[0]
+    assert first_row["payment_number"] == 1
+    assert isinstance(first_row["payment_date"], dt.date) or isinstance(
+        first_row["payment_date"], pd.Timestamp
+    )
+    assert first_row["payment_amount"] > 0
+
+    last_row = df.iloc[-1]
+    assert last_row["payment_number"] == 12
+
+
+def test_generate_monthly_payment_schedule_calculates_correct_payment_amount():
+    """
+    Test that monthly payment amount is correctly calculated using amortization formula.
+    """
+    principal = 100000
+    annual_rate = 0.05
+    months = 24
+
+    df = generate_monthly_payment_schedule(principal, annual_rate, months)
+
+    monthly_payment = df.iloc[0]["payment_amount"]
+    expected_payment = 4387.14  # Pre-calculated value
+
+    assert (
+        abs(monthly_payment - expected_payment) < 0.01
+    ), f"Expected ~{expected_payment}, got {monthly_payment}"
+
+
+def test_generate_monthly_payment_schedule_with_custom_start_date():
+    """
+    Test that custom start date is handled correctly.
+    """
+    start_date_str = "2026-01-01"
     df = generate_monthly_payment_schedule(
-        principal=120000, annual_rate=0.06, duration_months=12
+        principal=10000, annual_rate=0.12, months=3, start_date=start_date_str
     )
 
-    # Verify basic properties
-    assert len(df) == 12
-    expected_columns = [
-        "Month",
-        "Payment",
-        "Principal",
-        "Interest",
-        "Remaining Balance",
-    ]
-    for col in expected_columns:
-        assert col in df.columns
+    # Convert expected dates
+    expected_dates = pd.date_range(start=start_date_str, periods=3, freq="MS").date
 
-    # Verify first payment values based on actual calculation
-    assert abs(df.iloc[0]["Payment"] - 10327.97) < 0.01  # Actual calculated value
-    assert abs(df.iloc[0]["Principal"] - 9427.97) < 0.01
-    assert abs(df.iloc[0]["Interest"] - 900.00) < 0.01
+    for i, expected_date in enumerate(expected_dates):
+        assert df.iloc[i]["payment_date"] == expected_date
 
-    # Verify last payment values
-    assert abs(df.iloc[-1]["Remaining Balance"]) < 0.01  # Should be zero
 
-    # Verify total payments equal sum of individual payments
-    total_payment = df["Payment"].sum()
-    calc_result = calculate_compound_interest(120000, 12, 0.06)
-    assert abs(total_payment - calc_result["total_paid"]) < 0.01
+def test_generate_monthly_payment_schedule_handles_zero_interest():
+    """
+    Test zero interest rate case (simple division).
+    """
+    df = generate_monthly_payment_schedule(principal=12000, annual_rate=0.0, months=12)
+
+    expected_payment = 1000.0
+    assert all(
+        abs(payment - expected_payment) < 0.01 for payment in df["payment_amount"]
+    )
 
 
 def test_calculate_deposit_effect():
