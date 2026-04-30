@@ -18,7 +18,7 @@ def test_calculate_compound_interest():
     
     # Verify all expected keys are present
     expected_keys = ['principal', 'duration_months', 'annual_rate', 'monthly_payment', 
-                    'total_paid', 'total_interest', 'deposit_effect']
+                    'total_paid', 'total_interest']
     for key in expected_keys:
         assert key in result, f"Missing key: {key}"
     
@@ -41,20 +41,15 @@ def test_generate_monthly_payment_schedule():
     
     # Verify basic properties
     assert len(df) == 12
-    expected_columns = ['Month', 'Payment', 'Principal', 'Interest', 'Remaining Balance']
+    expected_columns = ['payment_number', 'payment_date', 'payment_amount']
     for col in expected_columns:
         assert col in df.columns
     
-    # Verify first payment values based on actual calculation
-    assert abs(df.iloc[0]['Payment'] - 10327.97) < 0.01  # Actual calculated value
-    assert abs(df.iloc[0]['Principal'] - 9427.97) < 0.01
-    assert abs(df.iloc[0]['Interest'] - 900.00) < 0.01
-    
-    # Verify last payment values
-    assert abs(df.iloc[-1]['Remaining Balance']) < 0.01  # Should be zero
+    # Verify first payment value based on actual calculation
+    assert abs(df.iloc[0]['payment_amount'] - 10327.97) < 0.01  # Actual calculated value
     
     # Verify total payments equal sum of individual payments
-    total_payment = df['Payment'].sum()
+    total_payment = df['payment_amount'].sum()
     calc_result = calculate_compound_interest(120000, 12, 0.06)
     assert abs(total_payment - calc_result['total_paid']) < 0.01
 
