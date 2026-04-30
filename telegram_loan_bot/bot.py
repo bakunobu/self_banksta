@@ -1,27 +1,38 @@
 import os
 import sys
 
+
+import logging
+import sqlite3
+from datetime import datetime
+from io import BytesIO
+
+import pandas as pd
+from dotenv import load_dotenv
+from telegram import InputFile, KeyboardButton, ReplyKeyboardMarkup, Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
+from weasyprint import CSS, HTML
+
+from local_csv_client import ParseKeyRates
+
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up to root
 sys.path.append(ROOT_DIR)  # Add data directory to sys.path for importing
 
-import sqlite3
-import logging
-import asyncio
-import pandas as pd
-from io import BytesIO
-from datetime import datetime
-from dotenv import load_dotenv
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InputFile
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
-from local_csv_client import ParseKeyRates
-from weasyprint import HTML, CSS
-
 # Load environment variables
 load_dotenv()
-TOKEN = os.environ.get('TOKEN_TG', 'YOUR_BOT_TOKEN_HERE')
+TOKEN = os.environ.get("TOKEN_TG", "YOUR_BOT_TOKEN_HERE")
 
 # Setup logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
 # ==========================================
 # 1. DATABASE & CONFIGURATION LOGIC
@@ -34,36 +45,47 @@ os.makedirs(DATA_DIR, exist_ok=True)
 # File paths
 DB_FILE = os.path.join(DATA_DIR, "loan_bot.db")
 CONFIG_JSON = os.path.join(DATA_DIR, "config.json")  # In case you still use it
-BASE_KEY_RATE = ParseKeyRates().return_actual_rate()[1]  # Example base rate (16%). You can update this as needed.
+BASE_KEY_RATE = ParseKeyRates().return_actual_rate()[
+    1
+]  # Example base rate (16%). You can update this as needed.
 
 
 def init_db():
     """Initializes a local SQLite database to store user spreads."""
     with sqlite3.connect(DB_FILE) as conn:
-        conn.execute('''
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 username TEXT,
                 spread REAL DEFAULT 0.0
             )
-        ''')
+        """
+        )
+
 
 def get_user_spread(user_id: int) -> float:
     """Fetches the custom spread for a specific user."""
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT spread FROM users WHERE user_id = ?', (user_id,))
+        cursor.execute("SELECT spread FROM users WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
         return row[0] if row else 0.0
+
 
 def set_user_spread(user_id: int, username: str, spread: float):
     """Saves a custom spread for a specific user."""
     with sqlite3.connect(DB_FILE) as conn:
-        conn.execute('''
+        conn.execute(
+            """
             INSERT INTO users (user_id, username, spread)
             VALUES (?, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET spread=excluded.spread, username=excluded.username
-        ''', (user_id, username, spread))
+            ON CONFLICT(user_id)
+            DO UPDATE SET spread=excluded.spread, username=excluded.username
+        """,
+            (user_id, username, spread),
+        )
+
 
 # ==========================================
 # 2. FINANCIAL CALCULATION LOGIC
@@ -71,58 +93,57 @@ def set_user_spread(user_id: int, username: str, spread: float):
 def generate_pdf_report(total: dict, df: pd.DataFrame, user_id: int) -> bytes:
     """
     Generate a PDF report from loan calculation data.
-    
+
     Args:
         total (dict): The loan summary data from calculate_compound_interest
         df (pd.DataFrame): The payment schedule
         user_id (int): The user's ID for temporary file naming
-    
+
     Returns:
         bytes: The PDF content as bytes
     """
     # Create HTML content for the PDF
-    html_content = f'''
+    html_content = f"""
     <html>
     <head>
         <meta charset="utf-8">
         <style>
             body {{ font-family: Arial, sans-serif; margin: 2cm; }}
-            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
+            h1 {{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px;}}
             h2 {{ color: #2980b9; margin-top: 20px; }}
-            .summary {{ 
-                background-color: #f8f9fa; 
-                padding: 15px; 
-                border-radius: 5px; 
-                margin: 15px 0; 
-                border-left: 4px solid #3498db; 
+            .summary {{
+                background-color: #f8f9fa;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 15px 0;
+                border-left: 4px solid #3498db;
             }}
-            table {{ 
-                width: 100%; 
-                border-collapse: collapse; 
-                margin: 15px 0; 
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
             }}
-            th, td {{ 
-                border: 1px solid #ddd; 
-                padding: 8px; 
-                text-align: left; 
+            th, td {{
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
             }}
-            th {{ 
-                background-color: #f2f2f2; 
-                font-weight: bold; 
+            th {{
+                background-color: #f2f2f2;
+                font-weight: bold;
             }}
             tr:nth-child(even) {{ background-color: #f9f9f9; }}
-            .footer {{ 
-                margin-top: 30px; 
-                font-size: 0.8em; 
-                color: #7f8c8d; 
-                text-align: center; 
+            .footer {{
+                margin-top: 30px;
+                font-size: 0.8em;
+                color: #7f8c8d;
+                text-align: center;
             }}
         </style>
     </head>
     <body>
         <h1>Loan Payment Schedule Report</h1>
         <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        
         <div class="summary">
             <h2>Loan Summary</h2>
             <p><strong>Principal Amount:</strong> {total['principal']:,.2f}</p>
@@ -133,7 +154,6 @@ def generate_pdf_report(total: dict, df: pd.DataFrame, user_id: int) -> bytes:
             <p><strong>Total Interest Paid:</strong> {total['total_interest']:,.2f}</p>
             <p><strong>Deposit Effect:</strong> {total['deposit_effect']:,.2f}</p>
         </div>
-        
         <h2>Payment Schedule</h2>
         <table>
             <thead>
@@ -145,38 +165,40 @@ def generate_pdf_report(total: dict, df: pd.DataFrame, user_id: int) -> bytes:
                     <th>Remaining Balance</th>
                 </tr>
             </thead>
-            <tbody>'''}
-    
+            <tbody>"""
+
     # Add table rows
     for _, row in df.iterrows():
-        html_content += f'''
+        html_content += f"""
                 <tr>
                     <td>{int(row['Month'])}</td>
                     <td>{row['Payment']:,.2f}</td>
                     <td>{row['Principal']:,.2f}</td>
                     <td>{row['Interest']:,.2f}</td>
                     <td>{row['Remaining Balance']:,.2f}</td>
-                </tr>'''
-    
+                </tr>"""
+
     # Close HTML
-    html_content += f'''
+    html_content += """
             </tbody>
         </table>
-        
         <div class="footer">
             <p>Loan Calculator Bot • Confidential Report</p>
         </div>
     </body>
-    </html>'''
-    
+    </html>"""
+
     # Convert HTML to PDF
     html = HTML(string=html_content)
-    css = CSS(string='@page {{ size: A4; margin: 2cm }}')
+    css = CSS(string="@page {{ size: A4; margin: 2cm }}")
     pdf_bytes = html.write_pdf(stylesheets=[css])
-    
+
     return pdf_bytes
 
-def calculate_compound_interest(principal: float, duration_months: int, annual_rate: float) -> dict:
+
+def calculate_compound_interest(
+    principal: float, duration_months: int, annual_rate: float
+) -> dict:
     """
     Calculate compound interest and monthly payment using correct amortization formula.
 
@@ -190,15 +212,19 @@ def calculate_compound_interest(principal: float, duration_months: int, annual_r
               monthly payment, total paid, total interest, and deposit effect
     """
     monthly_rate = annual_rate / 12
-    
+
     if monthly_rate == 0:
         monthly_payment = principal / duration_months
     else:
-        monthly_payment = principal * (monthly_rate * (1 + monthly_rate)**duration_months) / ((1 + monthly_rate)**duration_months - 1)
-    
+        monthly_payment = (
+            principal
+            * (monthly_rate * (1 + monthly_rate) ** duration_months)
+            / ((1 + monthly_rate) ** duration_months - 1)
+        )
+
     total_paid = monthly_payment * duration_months
     total_interest = total_paid - principal
-    
+
     # Calculate deposit effect - sum of interest over time
     # This represents the total interest that would be earned if the monthly payments
     # were invested at the same rate
@@ -206,49 +232,60 @@ def calculate_compound_interest(principal: float, duration_months: int, annual_r
     for i in range(duration_months):
         # For each month, calculate the interest component of the payment
         # Using the formula for interest portion of installment loan payment
-        remaining_balance = principal * ((1 + monthly_rate) ** (i+1) - (1 + monthly_rate) ** i) / ((1 + monthly_rate) ** duration_months - 1)
+        remaining_balance = (
+            principal
+            * ((1 + monthly_rate) ** (i + 1) - (1 + monthly_rate) ** i)
+            / ((1 + monthly_rate) ** duration_months - 1)
+        )
         interest_portion = remaining_balance * monthly_rate
         deposit_effect += interest_portion
 
     return {
-        'principal': principal,
-        'duration_months': duration_months,
-        'annual_rate': annual_rate,
-        'monthly_payment': monthly_payment,
-        'total_paid': total_paid,
-        'total_interest': total_interest,
-        'deposit_effect': deposit_effect
+        "principal": principal,
+        "duration_months": duration_months,
+        "annual_rate": annual_rate,
+        "monthly_payment": monthly_payment,
+        "total_paid": total_paid,
+        "total_interest": total_interest,
+        "deposit_effect": deposit_effect,
     }
 
-def generate_monthly_payment_schedule(principal: float, duration_months: int, annual_rate: float) -> pd.DataFrame:
+
+def generate_monthly_payment_schedule(
+    principal: float, duration_months: int, annual_rate: float
+) -> pd.DataFrame:
     monthly_rate = annual_rate / 12
     schedule = []
     balance = principal
     calc = calculate_compound_interest(principal, duration_months, annual_rate)
-    monthly_payment = calc['monthly_payment']
+    monthly_payment = calc["monthly_payment"]
 
     for month in range(1, duration_months + 1):
         interest_payment = balance * monthly_rate
         principal_payment = monthly_payment - interest_payment
         balance -= principal_payment
-        
+
         # Handle floating point imprecision on final month
-        if balance < 0.01: 
+        if balance < 0.01:
             balance = 0.0
 
-        schedule.append({
-            'Month': month,
-            'Payment': round(monthly_payment, 2),
-            'Principal': round(principal_payment, 2),
-            'Interest': round(interest_payment, 2),
-            'Remaining Balance': round(balance, 2)
-        })
-    
+        schedule.append(
+            {
+                "Month": month,
+                "Payment": round(monthly_payment, 2),
+                "Principal": round(principal_payment, 2),
+                "Interest": round(interest_payment, 2),
+                "Remaining Balance": round(balance, 2),
+            }
+        )
+
     return pd.DataFrame(schedule)
+
 
 # ==========================================
 # 3. TELEGRAM BOT HANDLERS
 # ==========================================
+
 
 def get_keyboard(include_back=False):
     """
@@ -257,12 +294,13 @@ def get_keyboard(include_back=False):
     """
     keyboard = [
         [KeyboardButton("📊 Rates"), KeyboardButton("📅 Schedule")],
-        [KeyboardButton("⚙️ Set Rate")]
+        [KeyboardButton("⚙️ Set Rate")],
     ]
     if include_back:
         keyboard.append([KeyboardButton("🏠 Back to Start")])
-    
+
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 def get_keyboard_with_formats():
     """
@@ -270,10 +308,11 @@ def get_keyboard_with_formats():
     """
     keyboard = [
         [KeyboardButton("📄 PDF Report"), KeyboardButton("📎 CSV File")],
-        [KeyboardButton("🏠 Back to Start")]
+        [KeyboardButton("🏠 Back to Start")],
     ]
-    
+
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -282,20 +321,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📊 Get current interest rates\n"
         "📅 Generate payment schedules\n"
         "⚙️ Change your personal rate spread",
-        reply_markup=get_keyboard()
+        reply_markup=get_keyboard(),
     )
-    
+
+
 async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Resets state and shows the start message."""
     # Clear any pending actions (like awaiting spread)
-    if 'awaiting_spread' in context.user_data:
-        del context.user_data['awaiting_spread']
-    
+    if "awaiting_spread" in context.user_data:
+        del context.user_data["awaiting_spread"]
+
     # Re-send the start message with main keyboard
     await update.message.reply_text(
         "👋 Welcome back! What would you like to do?",
-        reply_markup=get_keyboard()  # Main menu without 'Back' button
+        reply_markup=get_keyboard(),  # Main menu without 'Back' button
     )
+
 
 async def rates(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -303,18 +344,18 @@ async def rates(update: Update, context: ContextTypes.DEFAULT_TYPE):
         custom_spread = get_user_spread(user_id)
         # Total actual rate = Base Key Rate + Custom Spread
         total_rate = BASE_KEY_RATE + custom_spread
-        
+
         await update.message.reply_text(
             f"🏦 Current Interest Rates:\n"
             f"🔹 Base CB Rate: {BASE_KEY_RATE:.2%}\n"
             f"🔹 Your Bank Spread: {custom_spread:.2%}\n"
             f"📈 **Total Actual Rate:** {total_rate:.2%}",
             parse_mode="Markdown",
-            reply_markup=get_keyboard(include_back=True)
-
+            reply_markup=get_keyboard(include_back=True),
         )
     except Exception as e:
         await update.message.reply_text(f"❌ Error fetching rate: {str(e)}")
+
 
 async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -324,8 +365,9 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "`500000 12` (Uses your saved rate)\n"
         "`500000 12 0.17` (Forces a 17% rate)",
         parse_mode="Markdown",
-        reply_markup=get_keyboard(include_back=True)
+        reply_markup=get_keyboard(include_back=True),
     )
+
 
 async def setrate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -333,10 +375,11 @@ async def setrate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Example:\n"
         "`0.05` → adds 5% on top of key rate",
         parse_mode="Markdown",
-        reply_markup=get_keyboard(include_back=True)
+        reply_markup=get_keyboard(include_back=True),
     )
     # Set a flag in user_data so the bot knows the next message is a spread value
-    context.user_data['awaiting_spread'] = True
+    context.user_data["awaiting_spread"] = True
+
 
 async def handle_setrate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -350,13 +393,18 @@ async def handle_setrate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Update DB
         set_user_spread(user_id, username, spread)
 
-        await update.message.reply_text(f"✅ Your personal bank spread has been updated to {spread:.2%}")
-        
+        await update.message.reply_text(
+            f"✅ Your personal bank spread has been updated to {spread:.2%}"
+        )
+
         # Clear the flag so they can use the calculator again
-        context.user_data['awaiting_spread'] = False
+        context.user_data["awaiting_spread"] = False
 
     except ValueError:
-        await update.message.reply_text("❌ Please enter a valid decimal number like `0.03`.", parse_mode="Markdown")
+        await update.message.reply_text(
+            "❌ Please enter a valid decimal number like `0.03`.", parse_mode="Markdown"
+        )
+
 
 async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -368,7 +416,7 @@ async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_
 
         principal = float(parts[0])
         duration = int(parts[1])
-        
+
         # Use provided rate, OR fallback to base rate + user spread
         if len(parts) > 2:
             annual_rate = float(parts[2])
@@ -395,87 +443,92 @@ async def handle_loan_calculation(update: Update, context: ContextTypes.DEFAULT_
             f"📎 Choose your preferred format:\n"
         )
 
-        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_keyboard_with_formats())
-        
+        await update.message.reply_text(
+            msg, parse_mode="Markdown", reply_markup=get_keyboard_with_formats()
+        )
+
         # Store data in context for later use
-        context.user_data['calculation_data'] = {
-            'total': total,
-            'df': df,
-            'user_id': update.effective_user.id
+        context.user_data["calculation_data"] = {
+            "total": total,
+            "df": df,
+            "user_id": update.effective_user.id,
         }
 
-    except Exception as e:
+    except Exception:
         await update.message.reply_text(
-            "❌ Invalid input. Make sure you use numbers.\nExample: `500000 12 0.17`", 
+            "❌ Invalid input. Make sure you use numbers.\nExample: `500000 12 0.17`",
             parse_mode="Markdown",
-            reply_markup=get_keyboard(include_back=True)
+            reply_markup=get_keyboard(include_back=True),
         )
+
 
 async def send_pdf_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send the loan calculation report as a PDF file."""
-    if 'calculation_data' not in context.user_data:
+    if "calculation_data" not in context.user_data:
         await update.message.reply_text(
             "❌ No calculation data found. Please generate a schedule first.",
-            reply_markup=get_keyboard()
+            reply_markup=get_keyboard(),
         )
         return
-    
-    data = context.user_data['calculation_data']
-    total = data['total']
-    df = data['df']
-    user_id = data['user_id']
-    
+
+    data = context.user_data["calculation_data"]
+    total = data["total"]
+    df = data["df"]
+    user_id = data["user_id"]
+
     try:
         # Generate PDF report
         pdf_bytes = generate_pdf_report(total, df, user_id)
-        
+
         # Send PDF file
         await update.message.reply_document(
             document=InputFile(BytesIO(pdf_bytes), filename="loan_schedule.pdf"),
-            caption="📄 Your loan schedule report in PDF format"
+            caption="📄 Your loan schedule report in PDF format",
         )
-        
+
     except Exception as e:
         await update.message.reply_text(f"❌ Error generating PDF: {str(e)}")
 
+
 async def send_csv_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send the loan calculation report as a CSV file."""
-    if 'calculation_data' not in context.user_data:
+    if "calculation_data" not in context.user_data:
         await update.message.reply_text(
             "❌ No calculation data found. Please generate a schedule first.",
-            reply_markup=get_keyboard()
+            reply_markup=get_keyboard(),
         )
         return
-    
-    data = context.user_data['calculation_data']
-    df = data['df']
-    user_id = data['user_id']
-    
+
+    data = context.user_data["calculation_data"]
+    df = data["df"]
+    # user_id = data["user_id"]
+
     try:
         # Create CSV file in memory
         csv_buffer = BytesIO()
         df.to_csv(csv_buffer, index=False)
         csv_buffer.seek(0)
-        
+
         # Send CSV file
         await update.message.reply_document(
             document=InputFile(csv_buffer, filename="loan_schedule.csv"),
-            caption="📎 Your loan schedule in CSV format"
+            caption="📎 Your loan schedule in CSV format",
         )
-        
+
     except Exception as e:
         await update.message.reply_text(f"❌ Error generating CSV: {str(e)}")
+
 
 async def master_text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Routes plain text messages to the correct function based on user state."""
     text = update.message.text.strip()
-    
+
     # Ignore slash commands just in case they slip through
-    if text.startswith('/'):
+    if text.startswith("/"):
         return
 
     # Route 1: User clicked "Set Rate" and is sending a new spread
-    if context.user_data.get('awaiting_spread'):
+    if context.user_data.get("awaiting_spread"):
         await handle_setrate(update, context)
     # Route 2: User is selecting a report format
     elif text == "📄 PDF Report":
@@ -490,7 +543,7 @@ async def master_text_router(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # ==========================================
 # 4. MAIN APPLICATION RUNNER
 # ==========================================
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Ensure database exists
     init_db()
 
