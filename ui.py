@@ -1,5 +1,5 @@
 import os
-import datetime
+
 from models import Client, CreditAccount
 
 # Ensure database directory exists
@@ -8,7 +8,7 @@ if not os.path.exists("dbs"):
 
 
 def clear():
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system("cls" if os.name == "nt" else "clear")
 
 
 def wait():
@@ -36,7 +36,7 @@ def get_client():
     if client.accounts:
         print(f"\n✅ Loaded client: {client.name} (ID: {client.client_id})")
     else:
-        print(f"\n📝 New client will be created on first account addition.")
+        print("\n📝 New client will be created on first account addition.")
 
     # Update basic info
     name = input(f"Name [{client.name}]: ").strip() or client.name
@@ -64,7 +64,10 @@ def view_account_history(client: Client):
         print("🟢 ACTIVE ACCOUNTS:")
         for acc in client.get_active_accounts():
             print(f"  • {acc.account_id}")
-            print(f"     Balance: ${acc.credit_amt:,.2f} / Limit: ${acc.credit_limit:,.2f}")
+            print(
+                f"     Balance: ${acc.credit_amt:,.2f} \
+                    / Limit: ${acc.credit_limit:,.2f}"
+            )
             print(f"     Rate: {acc.interest_rate:.1%} | Active")
 
     if client.get_closed_accounts():
@@ -84,9 +87,14 @@ def view_credit_limits(client: Client):
 
     print(f"Client: {client.name}\n")
     for acc in client.get_active_accounts():
-        utilization = (acc.credit_amt / acc.credit_limit) * 100 if acc.credit_limit > 0 else 0
+        utilization = (
+            (acc.credit_amt / acc.credit_limit) * 100 if acc.credit_limit > 0 else 0
+        )
         print(f"💳 Account: {acc.account_id}")
-        print(f"   Used: ${acc.credit_amt:,.2f} / ${acc.credit_limit:,.2f} ({utilization:.1f}%)")
+        print(
+            f"   Used: ${acc.credit_amt:,.2f} \
+                / ${acc.credit_limit:,.2f} ({utilization:.1f}%)"
+        )
         print(f"   Rate: {acc.interest_rate:.1%}")
         print("")
 
@@ -127,7 +135,10 @@ def suggest_plan(client: Client):
             print(f"\n⚠️ {plan['error']}")
         else:
             print("\n✅ Suggested Plan:")
-            print(f"Duration: {plan['duration_months']} months ({plan['duration_years']} years)")
+            print(
+                f"Duration: {plan['duration_months']} \
+                    months ({plan['duration_years']} years)"
+            )
             print(f"Monthly Payment: ${plan['monthly_payment']:,.2f}")
             print(f"Total Interest: ${plan['total_interest']:,.2f}")
     except Exception:
@@ -147,7 +158,9 @@ def payment_calendar(client: Client):
     print("Active Accounts:")
     accounts = client.get_active_accounts()
     for i, acc in enumerate(accounts, 1):
-        print(f"{i}. {acc.account_id} - ${acc.credit_amt:,.2f} @ {acc.interest_rate:.1%}")
+        print(
+            f"{i}. {acc.account_id} - ${acc.credit_amt:,.2f} @ {acc.interest_rate:.1%}"
+        )
 
     try:
         choice = int(input(f"\nSelect account (1-{len(accounts)}): ")) - 1
@@ -186,14 +199,15 @@ def payment_calendar(client: Client):
         balance = max(0, balance - principal_reduction)
         total_paid += applied
 
-        print(f"{month:<3} ${balance:<11,.2f} ${applied:<9.2f} ${interest:<9.2f} ${balance:.2f}")
+        print(f"{month:<3} ${balance:<11,.2f}", end=" ")
+        print(f"${applied:<9.2f} ${interest:<9.2f} ${balance:.2f}")
 
         if balance == 0:
             print(f"\n🎉 Paid off in {month} months!")
             break
 
     print(f"\n💸 Total Paid: ${total_paid:.2f}")
-    saved_with_early = total_paid
+    # saved_with_early = total_paid
 
     # Early repayment option
     calc_full = CreditAccount.calculate_monthly_payment(
@@ -230,35 +244,35 @@ def main_menu():
 
         choice = input("Choose an option (1-7): ").strip()
 
-        if choice == '1':
+        if choice == "1":
             client = get_client()
-        elif choice == '2':
+        elif choice == "2":
             if client:
                 view_account_history(client)
             else:
                 print("\n❌ Please select a client first.")
                 wait()
-        elif choice == '3':
+        elif choice == "3":
             if client:
                 view_credit_limits(client)
             else:
                 print("\n❌ Please select a client first.")
                 wait()
-        elif choice == '4':
+        elif choice == "4":
             credit_calculator()
-        elif choice == '5':
+        elif choice == "5":
             if client:
                 suggest_plan(client)
             else:
                 print("\n❌ Please select a client first.")
                 wait()
-        elif choice == '6':
+        elif choice == "6":
             if client:
                 payment_calendar(client)
             else:
                 print("\n❌ Please select a client first.")
                 wait()
-        elif choice == '7':
+        elif choice == "7":
             print("\n👋 Thank you for using the Banking App. Goodbye!")
             break
         else:
