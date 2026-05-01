@@ -96,36 +96,37 @@ def test_generate_monthly_payment_schedule_calculates_correct_payment_amount():
     ), f"Expected ~{expected_payment}, got {monthly_payment}"
 
 
-# def test_generate_monthly_payment_schedule_with_custom_start_date():
-# """
-# Test that custom start date is handled correctly.
-# """
-# start_date_str = "2026-01-01"
-# df = generate_monthly_payment_schedule(
-# principal=10000, annual_rate=0.12, months=3, start_date=start_date_str # type: ignore
-# )
+def test_generate_monthly_payment_schedule_with_custom_start_date():
+    """
+    Test that custom start date is handled correctly.
+    """
+    start_date_str = "2026-01-01"
+    df = generate_monthly_payment_schedule(
+        principal=10000,
+        annual_rate=0.12,
+        duration_months=3,
+        start_date=start_date_str,  # type: ignore
+    )
 
-# Convert expected dates
-# expected_dates = pd.date_range(start=start_date_str, periods=3, freq="MS").date
+    # Convert expected dates
+    expected_dates = pd.date_range(start=start_date_str, periods=3, freq="MS").date
 
-# for i, expected_date in enumerate(expected_dates):
-# assert df.iloc[i]["payment_date"] == expected_date
+    for i, expected_date in enumerate(expected_dates):
+        assert df.iloc[i]["payment_date"] == expected_date
 
 
-# def test_generate_monthly_payment_schedule_handles_zero_interest():
-# """
-# Test zero interest rate case (simple division).
-# """
-# df = generate_monthly_payment_schedule(
-# principal=12000,
-# annual_rate=0.0,
-# months=12
-# ) # pyright: ignore[reportCallIssue]
+def test_generate_monthly_payment_schedule_handles_zero_interest():
+    """
+    Test zero interest rate case (simple division).
+    """
+    df = generate_monthly_payment_schedule(
+        principal=12000, annual_rate=0.0, duration_months=12
+    )  # pyright: ignore[reportCallIssue]
 
-# expected_payment = 1000.0
-# assert all(
-# abs(payment - expected_payment) < 0.01 for payment in df["payment_amount"]
-# )
+    expected_payment = 1000.0
+    assert all(
+        abs(payment - expected_payment) < 0.01 for payment in df["payment_amount"]
+    )
 
 
 def test_calculate_deposit_effect():
