@@ -19,11 +19,12 @@ from telegram.ext import (
 )
 from weasyprint import CSS, HTML
 
-from local_csv_client import ParseKeyRates
+# from local_csv_client import ParseKeyRates
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up to root
 sys.path.append(ROOT_DIR)  # Add data directory to sys.path for importing
+from local_csv_client import ParseKeyRates
 
 # Load environment variables
 load_dotenv()
@@ -53,15 +54,13 @@ BASE_KEY_RATE = ParseKeyRates().return_actual_rate()[
 def init_db():
     """Initializes a local SQLite database to store user spreads."""
     with sqlite3.connect(DB_FILE) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 username TEXT,
                 spread REAL DEFAULT 0.0
             )
-        """
-        )
+        """)
 
 
 def get_user_spread(user_id: int) -> float:
