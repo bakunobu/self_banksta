@@ -30,10 +30,8 @@ class ParseKeyRates:
     def __init__(
         self,
         url: str = "https://www.cbr.ru/hd_base/keyrate/",
-        headers: dict[str, str] = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) \
-                AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-        },
+        headers: dict[str, str] = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) \
+                AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"},
     ):
         self.url = url
         self.headers = headers
@@ -55,7 +53,9 @@ class ParseKeyRates:
             if len(cols) == 2:
                 date = cols[0].get_text(strip=True)  # e.g., "10.04.2026"
                 rate = cols[1].get_text(strip=True)  # e.g., "15,00"
-                rate_float = float(rate.replace(",", ".")) if rate else None
+                rate_float = (
+                    float(rate.replace(",", ".")) / 100 if rate else None
+                )  # Convert percentage to decimal
                 return date, rate_float
 
 
@@ -108,7 +108,7 @@ def calculate_compound_interest(
 def calculate_actual_rate():
     key_rate = ParseKeyRates().return_actual_rate()[1]
     spread = load_config(data_path)["bank_spread"]
-    return key_rate / 100 + spread
+    return key_rate + spread  # key_rate is already a decimal, so just add spread
 
 
 def generate_monthly_payment_schedule(
